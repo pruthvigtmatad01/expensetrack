@@ -73,10 +73,20 @@ export default function App() {
     <div className="app">
       <Navbar theme={theme} toggleTheme={toggleTheme} />
       <main className="main-content">
+
+        {/* Row 1: Summary Cards */}
         <DashboardCards income={income} expenses={expenses} savings={savings} budget={budget} />
+
+        {/* Row 2: Quick Add */}
+        <div className="card section-card">
+          <h3 className="section-title">Quick Add</h3>
+          <QuickAdd addTransaction={addTransaction} />
+        </div>
+
+        {/* Row 3: Two-column — Transactions (left) + Sidebar (right) */}
         <div className="grid-two">
+          {/* Left: Transaction Form + List */}
           <div className="left-col">
-            <QuickAdd addTransaction={addTransaction} />
             {showForm ? (
               <TransactionForm
                 addTransaction={addTransaction}
@@ -97,13 +107,18 @@ export default function App() {
               categories={CATEGORIES}
             />
           </div>
+
+          {/* Right: Budget + Insights + Recent */}
           <div className="right-col">
             <BudgetTracker budget={budget} setBudget={setBudget} expenses={expenses} />
-            <Analytics transactions={transactions} />
             <InsightsCard transactions={transactions} income={income} expenses={expenses} savings={savings} budget={budget} />
             <RecentActivity transactions={transactions} />
           </div>
         </div>
+
+        {/* Row 4: Full-width Analytics */}
+        <Analytics transactions={transactions} />
+
       </main>
       <footer className="footer">
         <p>SmartSpend &copy; {new Date().getFullYear()} | Built with React.js</p>
