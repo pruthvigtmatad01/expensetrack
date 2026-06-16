@@ -482,12 +482,23 @@ body {
 
 /* ── Footer ── */
 .footer {
+  background: var(--primary);
+  color: rgba(255, 255, 255, 0.92);
   text-align: center;
-  padding: 24px;
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px 24px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
   margin-top: auto;
+}
+.footer p {
+  margin: 0;
+}
+@media (max-width: 480px) {
+  .footer { padding: 16px; font-size: 0.8rem; }
 }
 
 /* ── Responsive ── */

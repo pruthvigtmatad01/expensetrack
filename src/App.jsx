@@ -182,7 +182,7 @@ export default function App() {
         </div>
       </main>
       <footer className="footer">
-        <p>SmartSpend &copy; {new Date().getFullYear()} | Developed by -Pruthvi GT Matad</p>
+        <p>&copy; Developed by - Pruthvi GT Matad</p>
       </footer>
     </div>
   );
