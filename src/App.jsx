@@ -11,42 +11,96 @@ import QuickAdd from './components/QuickAdd';
 
 const CATEGORIES = ['Food', 'Shopping', 'Travel', 'Education', 'Entertainment', 'Bills', 'Health', 'Other'];
 
-function loadFromStorage(key, fallback) {
+// ── Storage helpers ────────────────────────────────────────────────────────────
+function load(key, fallback) {
   try {
-    const data = localStorage.getItem(key);
-    return data ? JSON.parse(data) : fallback;
+    const raw = localStorage.getItem(key);
+    if (raw === null) return fallback;
+    return JSON.parse(raw);
   } catch {
     return fallback;
   }
 }
 
-function saveToStorage(key, value) {
-  localStorage.setItem(key, JSON.stringify(value));
+function save(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // localStorage full or unavailable — silently continue
+  }
 }
 
+// ── Data validators — prevent corrupted data from crashing the app ─────────────
+function validateTransactions(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(t =>
+    t &&
+    typeof t.id === 'number' &&
+    typeof t.title === 'string' && t.title.trim() !== '' &&
+    typeof t.amount === 'number' && t.amount > 0 &&
+    typeof t.category === 'string' &&
+    (t.type === 'income' || t.type === 'expense') &&
+    typeof t.date === 'string'
+  );
+}
+
+function validateBudget(raw) {
+  const n = parseFloat(raw);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
+function validateTheme(raw) {
+  return raw === 'dark' ? 'dark' : 'light';
+}
+
+// Apply theme to <html> immediately (before first render) to prevent flash
+const initialTheme = validateTheme(load('smartspend_theme', 'light'));
+document.documentElement.setAttribute('data-theme', initialTheme);
+
+// ── App ────────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [transactions, setTransactions] = useState(() => loadFromStorage('smartspend_transactions', []));
-  const [budget, setBudget] = useState(() => loadFromStorage('smartspend_budget', 0));
-  const [theme, setTheme] = useState(() => loadFromStorage('smartspend_theme', 'light'));
+  const [transactions, setTransactions] = useState(() =>
+    validateTransactions(load('smartspend_transactions', []))
+  );
+  const [budget, setBudgetState] = useState(() =>
+    validateBudget(load('smartspend_budget', 0))
+  );
+  const [theme, setTheme] = useState(initialTheme);
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [showForm, setShowForm] = useState(false);
 
-  useEffect(() => { saveToStorage('smartspend_transactions', transactions); }, [transactions]);
-  useEffect(() => { saveToStorage('smartspend_budget', budget); }, [budget]);
+  // Persist every change immediately
+  useEffect(() => { save('smartspend_transactions', transactions); }, [transactions]);
+  useEffect(() => { save('smartspend_budget', budget); }, [budget]);
   useEffect(() => {
-    saveToStorage('smartspend_theme', theme);
+    save('smartspend_theme', theme);
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
-  const toggleTheme = () => setTheme(t => (t === 'light' ? 'dark' : 'light'));
+  const toggleTheme = useCallback(() => {
+    setTheme(t => (t === 'light' ? 'dark' : 'light'));
+  }, []);
+
+  // Wrap setBudget so it always validates before saving
+  const setBudget = useCallback((val) => {
+    setBudgetState(validateBudget(val));
+  }, []);
 
   const addTransaction = useCallback((txn) => {
-    setTransactions(prev => [{ ...txn, id: Date.now(), date: txn.date || new Date().toISOString().split('T')[0] }, ...prev]);
+    const newTxn = {
+      id: Date.now(),
+      title: String(txn.title).trim(),
+      amount: parseFloat(txn.amount),
+      category: txn.category,
+      type: txn.type,
+      date: txn.date || new Date().toISOString().split('T')[0],
+    };
+    setTransactions(prev => [newTxn, ...prev]);
     setShowForm(false);
   }, []);
 
   const updateTransaction = useCallback((txn) => {
-    setTransactions(prev => prev.map(t => (t.id === txn.id ? txn : t)));
+    setTransactions(prev => prev.map(t => (t.id === txn.id ? { ...txn } : t)));
     setEditingTransaction(null);
     setShowForm(false);
   }, []);
@@ -65,15 +119,24 @@ export default function App() {
     setShowForm(false);
   }, []);
 
-  const income = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-  const expenses = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  const income = transactions
+    .filter(t => t.type === 'income')
+    .reduce((sum, t) => sum + t.amount, 0);
+  const expenses = transactions
+    .filter(t => t.type === 'expense')
+    .reduce((sum, t) => sum + t.amount, 0);
   const savings = income - expenses;
 
   return (
     <div className="app">
       <Navbar theme={theme} toggleTheme={toggleTheme} />
       <main className="main-content">
-        <DashboardCards income={income} expenses={expenses} savings={savings} budget={budget} />
+        <DashboardCards
+          income={income}
+          expenses={expenses}
+          savings={savings}
+          budget={budget}
+        />
         <div className="grid-two">
           <div className="left-col">
             <QuickAdd addTransaction={addTransaction} />
@@ -86,7 +149,10 @@ export default function App() {
                 categories={CATEGORIES}
               />
             ) : (
-              <button className="btn-primary add-btn" onClick={() => setShowForm(true)}>
+              <button
+                className="btn-primary add-btn"
+                onClick={() => setShowForm(true)}
+              >
                 + Add Transaction
               </button>
             )}
@@ -98,9 +164,19 @@ export default function App() {
             />
           </div>
           <div className="right-col">
-            <BudgetTracker budget={budget} setBudget={setBudget} expenses={expenses} />
+            <BudgetTracker
+              budget={budget}
+              setBudget={setBudget}
+              expenses={expenses}
+            />
             <Analytics transactions={transactions} />
-            <InsightsCard transactions={transactions} income={income} expenses={expenses} savings={savings} budget={budget} />
+            <InsightsCard
+              transactions={transactions}
+              income={income}
+              expenses={expenses}
+              savings={savings}
+              budget={budget}
+            />
             <RecentActivity transactions={transactions} />
           </div>
         </div>

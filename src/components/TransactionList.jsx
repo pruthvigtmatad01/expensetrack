@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { FiEdit2, FiTrash2, FiSearch } from 'react-icons/fi';
 
 function formatCurrency(n) {
@@ -6,20 +6,43 @@ function formatCurrency(n) {
 }
 
 function categoryIcon(cat) {
-  const map = { Food: '🍔', Shopping: '🛍️', Travel: '✈️', Education: '📚', Entertainment: '🎬', Bills: '📄', Health: '❤️', Other: '📌' };
+  const map = {
+    Food: '🍔', Shopping: '🛍️', Travel: '✈️', Education: '📚',
+    Entertainment: '🎬', Bills: '📄', Health: '❤️', Other: '📌',
+  };
   return map[cat] || '📌';
 }
 
-export default function TransactionList({ transactions, deleteTransaction, startEdit, categories }) {
+function loadPref(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw !== null ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+export default function TransactionList({ transactions, deleteTransaction, startEdit }) {
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState('all');
-  const [sortNewest, setSortNewest] = useState(true);
+  const [filter, setFilter] = useState(() => loadPref('smartspend_filter', 'all'));
+  const [sortNewest, setSortNewest] = useState(() => loadPref('smartspend_sort_newest', true));
+
+  // Persist filter and sort preferences immediately on change
+  useEffect(() => {
+    localStorage.setItem('smartspend_filter', JSON.stringify(filter));
+  }, [filter]);
+
+  useEffect(() => {
+    localStorage.setItem('smartspend_sort_newest', JSON.stringify(sortNewest));
+  }, [sortNewest]);
 
   const filtered = useMemo(() => {
     let list = [...transactions];
     if (search.trim()) {
       const q = search.toLowerCase();
-      list = list.filter(t => t.title.toLowerCase().includes(q) || t.category.toLowerCase().includes(q));
+      list = list.filter(
+        t => t.title.toLowerCase().includes(q) || t.category.toLowerCase().includes(q)
+      );
     }
     if (filter !== 'all') list = list.filter(t => t.type === filter);
     list.sort((a, b) => {
@@ -31,11 +54,15 @@ export default function TransactionList({ transactions, deleteTransaction, start
 
   const exportCSV = () => {
     const header = 'Title,Amount,Category,Date,Type\n';
-    const rows = transactions.map(t => `"${t.title}",${t.amount},"${t.category}","${t.date}","${t.type}"`).join('\n');
+    const rows = transactions
+      .map(t => `"${t.title}",${t.amount},"${t.category}","${t.date}","${t.type}"`)
+      .join('\n');
     const blob = new Blob([header + rows], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = 'smartspend_transactions.csv'; a.click();
+    a.href = url;
+    a.download = 'smartspend_transactions.csv';
+    a.click();
     URL.revokeObjectURL(url);
   };
 
@@ -52,12 +79,18 @@ export default function TransactionList({ transactions, deleteTransaction, start
     <div className="card txn-list-card">
       <div className="txn-list-header">
         <h3>Transactions</h3>
-        <button className="btn-secondary btn-sm" onClick={exportCSV}>Export CSV</button>
+        <button className="btn-secondary btn-sm" onClick={exportCSV}>
+          Export CSV
+        </button>
       </div>
       <div className="txn-filters">
         <div className="search-box">
           <FiSearch />
-          <input placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
+          <input
+            placeholder="Search..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
         </div>
         <select value={filter} onChange={e => setFilter(e.target.value)}>
           <option value="all">All</option>
@@ -85,7 +118,9 @@ export default function TransactionList({ transactions, deleteTransaction, start
             </div>
           </li>
         ))}
-        {filtered.length === 0 && <p className="no-results">No matching transactions.</p>}
+        {filtered.length === 0 && (
+          <p className="no-results">No matching transactions.</p>
+        )}
       </ul>
     </div>
   );
